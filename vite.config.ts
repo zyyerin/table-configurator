@@ -7,5 +7,5 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
-  base: '/chair-configurator/', // 修改这里，从'./'改为'/chair-configurator/'
+  base: '/table-configurator/',
 });
