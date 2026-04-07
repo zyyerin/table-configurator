@@ -55,7 +55,7 @@ export async function mockGenerateTableDesign(prompt: string, chatHistory: Array
         const length = 80 + people * 10;
         const width = 60 + Math.floor(people / 2) * 10;
         
-        return `针对${people}人使用的需求，我建议以下尺寸:
+        return `[mock] 针对${people}人使用的需求，我建议以下尺寸:
 
 桌子宽度：${width}cm
 桌子长度：${length}cm
@@ -67,27 +67,27 @@ export async function mockGenerateTableDesign(prompt: string, chatHistory: Array
       // 根据提示词选择回复内容
       if (prompt.includes('圆角') || prompt.includes('圆形')) {
         const roundedCorners = prompt.includes('大圆角') ? 75 : 30;
-        resolve(`为您设计一款现代风格的圆角桌面，圆角处理让整体外观更加柔和流畅，减少意外碰撞风险，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，` : material === 'titanium' ? '采用高级钛金属材质，' : material === 'bronze' ? '采用典雅青铜材质，' : '采用耐用不锈钢材质，'}桌腿设计简约而稳固。
+        resolve(`[mock] 为您设计一款现代风格的圆角桌面，圆角处理让整体外观更加柔和流畅，减少意外碰撞风险，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，` : material === 'titanium' ? '采用高级钛金属材质，' : material === 'bronze' ? '采用典雅青铜材质，' : '采用耐用不锈钢材质，'}桌腿设计简约而稳固。
 [参数更新: 材料: ${material}, 桌子宽度: ${tableWidth}, 桌子长度: ${tableLength}, 桌腿高度: ${legHeight}, 桌面圆角: ${roundedCorners}${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`);
       } else if (prompt.includes('现代') || prompt.includes('简约')) {
-        resolve(`为您打造一款极简现代风格的餐桌，线条简洁流畅，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，` : material === 'titanium' ? '采用高级钛金属材质，' : material === 'bronze' ? '采用典雅青铜材质，' : '采用耐用不锈钢材质，'}桌面保持简洁设计，搭配修长的桌腿，创造出轻盈通透的视觉效果。
+        resolve(`[mock] 为您打造一款极简现代风格的餐桌，线条简洁流畅，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，` : material === 'titanium' ? '采用高级钛金属材质，' : material === 'bronze' ? '采用典雅青铜材质，' : '采用耐用不锈钢材质，'}桌面保持简洁设计，搭配修长的桌腿，创造出轻盈通透的视觉效果。
 [参数更新: 材料: ${material}, 桌子宽度: ${tableWidth}, 桌子长度: ${tableLength}, 桌腿高度: ${legHeight}, 桌腿宽度: 3, 桌腿底部宽度: 3, 桌腿倾斜角度: 0${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`);
       } else if (prompt.includes('传统') || prompt.includes('古典')) {
-        resolve(`为您设计一款古典风格的餐桌，${material === 'plastic' ? `虽然使用了${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，但依然` : material === 'titanium' ? '采用高贵的钛金属材质，' : material === 'bronze' ? '采用古朴的青铜材质，完美' : '采用精致的不锈钢材质，'}保留了传统家具的厚重感，桌腿弧线优美，桌面边缘处理精细，展现出非凡的工艺和品质。
+        resolve(`[mock] 为您设计一款古典风格的餐桌，${material === 'plastic' ? `虽然使用了${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，但依然` : material === 'titanium' ? '采用高贵的钛金属材质，' : material === 'bronze' ? '采用古朴的青铜材质，完美' : '采用精致的不锈钢材质，'}保留了传统家具的厚重感，桌腿弧线优美，桌面边缘处理精细，展现出非凡的工艺和品质。
 [参数更新: 材料: ${material}, 桌子宽度: 85, 桌子长度: 180, 桌腿高度: 72, 桌腿宽度: 6, 桌腿底部宽度: 4, 桌腿倾斜角度: 0, 桌面厚度: 5${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`);
       } else if (prompt.includes('工业') || prompt.includes('loft')) {
-        resolve(`为您设计一款工业风格的餐桌，${material === 'plastic' ? `虽然使用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质较为特殊，但依然能` : material === 'titanium' ? '采用精工钛金属材质，完美' : material === 'bronze' ? '选用做旧青铜材质，恰到好处地' : '选用哑光不锈钢材质，完美'}体现出粗犷的工业质感，坚固的桌腿略微内倾，强调结构美感，桌面厚实有力，打造出兼具实用性与设计感的空间。
+        resolve(`[mock] 为您设计一款工业风格的餐桌，${material === 'plastic' ? `虽然使用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质较为特殊，但依然能` : material === 'titanium' ? '采用精工钛金属材质，完美' : material === 'bronze' ? '选用做旧青铜材质，恰到好处地' : '选用哑光不锈钢材质，完美'}体现出粗犷的工业质感，坚固的桌腿略微内倾，强调结构美感，桌面厚实有力，打造出兼具实用性与设计感的空间。
 [参数更新: 材料: ${material}, 桌子宽度: 90, 桌子长度: 180, 桌腿高度: 75, 桌腿宽度: 5, 桌腿底部宽度: 4, 桌腿倾斜角度: 8, 桌面厚度: 4${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`);
       } else {
         // 随机创意建议
         const suggestions = [
-          `为您设计一款兼具美观与实用性的多功能桌子，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，既轻盈又耐用，` : material === 'titanium' ? '采用高级钛金属材质，轻盈坚固，' : material === 'bronze' ? '采用高雅青铜材质，质感出众，' : '采用优质不锈钢材质，坚固耐用，'}桌面采用小圆角设计增加安全性，桌腿略微内倾提供稳定支撑，无论是作为工作桌还是餐桌都非常适合。
+          `[mock] 为您设计一款兼具美观与实用性的多功能桌子，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，既轻盈又耐用，` : material === 'titanium' ? '采用高级钛金属材质，轻盈坚固，' : material === 'bronze' ? '采用高雅青铜材质，质感出众，' : '采用优质不锈钢材质，坚固耐用，'}桌面采用小圆角设计增加安全性，桌腿略微内倾提供稳定支撑，无论是作为工作桌还是餐桌都非常适合。
 [参数更新: 材料: ${material}, 桌子宽度: 75, 桌子长度: 150, 桌腿高度: 73, 桌腿宽度: 4, 桌腿底部宽度: 3, 桌腿倾斜角度: 5, 桌面厚度: 3, 桌面圆角: 15${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`,
           
-          `为您打造一款极简主义风格的桌子，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，突显现代感，` : material === 'titanium' ? '采用珍贵钛金属材质，质感非凡，' : material === 'bronze' ? '采用精致青铜材质，温暖优雅，' : '采用精工不锈钢材质，简约大方，'}桌面采用中等圆角处理，四根桌腿保持垂直设计，营造出稳定感与几何美感的平衡，适合现代简约的家居环境。
+          `[mock] 为您打造一款极简主义风格的桌子，${material === 'plastic' ? `采用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，突显现代感，` : material === 'titanium' ? '采用珍贵钛金属材质，质感非凡，' : material === 'bronze' ? '采用精致青铜材质，温暖优雅，' : '采用精工不锈钢材质，简约大方，'}桌面采用中等圆角处理，四根桌腿保持垂直设计，营造出稳定感与几何美感的平衡，适合现代简约的家居环境。
 [参数更新: 材料: ${material}, 桌子宽度: 80, 桌子长度: 160, 桌腿高度: 75, 桌腿宽度: 3.5, 桌腿底部宽度: 3.5, 桌腿倾斜角度: 0, 桌面厚度: 2.5, 桌面圆角: 25${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`,
           
-          `为您定制一款融合当代设计与实用功能的桌子，${material === 'plastic' ? `选用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，让空间更富活力，` : material === 'titanium' ? '选用高档钛金属材质，展现品味，' : material === 'bronze' ? '选用古典青铜材质，彰显文化底蕴，' : '选用优质不锈钢材质，经久耐用，'}适中的尺寸与高度符合人体工学设计，锥形桌腿由上至下逐渐收窄，赋予家具轻盈感的同时确保稳定性。
+          `[mock] 为您定制一款融合当代设计与实用功能的桌子，${material === 'plastic' ? `选用${color === '#0055FF' ? '蓝色' : color === '#FF0000' ? '红色' : color === '#00FF00' ? '绿色' : color === '#FFFF00' ? '黄色' : color === '#000000' ? '黑色' : '白色'}塑料材质，让空间更富活力，` : material === 'titanium' ? '选用高档钛金属材质，展现品味，' : material === 'bronze' ? '选用古典青铜材质，彰显文化底蕴，' : '选用优质不锈钢材质，经久耐用，'}适中的尺寸与高度符合人体工学设计，锥形桌腿由上至下逐渐收窄，赋予家具轻盈感的同时确保稳定性。
 [参数更新: 材料: ${material}, 桌子宽度: 85, 桌子长度: 170, 桌腿高度: 74, 桌腿宽度: 5, 桌腿底部宽度: 2.5, 桌腿倾斜角度: 0, 桌面厚度: 3, 桌面圆角: 10${material === 'plastic' ? `, 塑料颜色: ${color}` : ''}]`
         ];
         

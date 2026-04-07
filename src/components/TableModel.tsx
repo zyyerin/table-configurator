@@ -1,5 +1,5 @@
-import { useRef, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useRef, useMemo, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useTableStore } from '../store/tableStore';
 import * as THREE from 'three';
 
@@ -33,6 +33,71 @@ export function TableModel() {
   };
 
   console.log('TableModel重新渲染，roundedCorners =', roundedCorners);
+
+  const { camera, size } = useThree();
+  const controls = useThree((state) => state.controls) as any;
+
+  // 处理相机偏移，使模型偏左（避开右侧的参数面板）
+  useEffect(() => {
+    if (camera.type === 'PerspectiveCamera') {
+      const panelWidth = 420;
+      // 为了不截断渲染并正确将透视中心左移，我们需要将当前画布视为一个更大渲染区的一部分
+      // virtual fullWidth = size.width + panelWidth
+      // offset x = panelWidth
+      // 这样透视中心会被移动到 (size.width - panelWidth) / 2 的位置
+      camera.setViewOffset(size.width + panelWidth, size.height, panelWidth, 0, size.width, size.height);
+      camera.updateProjectionMatrix();
+    }
+    return () => {
+      if (camera.type === 'PerspectiveCamera') {
+        camera.clearViewOffset();
+      }
+    };
+  }, [camera, size.width, size.height]);
+
+  // 处理模型缩放时的相机距离，确保模型完整显示
+  useEffect(() => {
+    // 获取桌子的最大尺寸 (宽度/长度中的较大值，转为米)
+    const maxDimension = Math.max(tableWidth, tableLength) / 100;
+    
+    // 基础距离，加上与物体尺寸相关的缩放距离
+    // 使得当参数改变时，物体放大我们能在屏幕上看见整体完整内容
+    const targetDistance = Math.max(3, maxDimension * 2.5);
+    
+    // 我们轻微地调整相机到目标距离的大小，如果当前距离太近
+    const currentDistance = camera.position.distanceTo(new THREE.Vector3(0, 0.5, 0));
+    
+    if (currentDistance < targetDistance - 0.5 || currentDistance > targetDistance + 2) {
+      // 规范化方向向量
+      const dir = camera.position.clone().sub(new THREE.Vector3(0, 0.5, 0)).normalize();
+      // 重新设置位置并应用
+      camera.position.copy(new THREE.Vector3(0, 0.5, 0).add(dir.multiplyScalar(targetDistance)));
+      camera.updateProjectionMatrix();
+    }
+  }, [tableWidth, tableLength, camera]);
+
+  // 当用户点击重置视角时，恢复相机的默认角度并计算合适的距离
+  useEffect(() => {
+    const handleResetView = () => {
+      const maxDimension = Math.max(tableWidth, tableLength) / 100;
+      const targetDistance = Math.max(3, maxDimension * 2.5);
+      
+      // 默认倾斜角度方向 (2, 1, 2 = 俯视对角线视角)
+      const defaultDir = new THREE.Vector3(2, 1, 2).normalize();
+      const targetPos = new THREE.Vector3(0, 0.5, 0);
+      
+      // 平滑移动逻辑被OrbitControls的update接管，所以我们直接赋值
+      camera.position.copy(targetPos.clone().add(defaultDir.multiplyScalar(targetDistance)));
+      if (controls) {
+        controls.target.copy(targetPos);
+        controls.update();
+      }
+      camera.updateProjectionMatrix();
+    };
+
+    window.addEventListener('reset-view', handleResetView);
+    return () => window.removeEventListener('reset-view', handleResetView);
+  }, [camera, controls, tableWidth, tableLength]);
 
   useFrame(() => {
     if (meshRef.current) {

@@ -44,10 +44,10 @@ interface Message {
   content: string;
 }
 
-export async function generateTableDesign(prompt: string, chatHistory: Array<{role: 'user' | 'assistant'; content: string}> = []): Promise<string> {
+export async function generateTableDesign(prompt: string, chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []): Promise<string> {
   try {
     console.log('Starting table design generation with prompt:', prompt);
-    
+
     if (!API_KEY) {
       throw new Error('API key is not configured');
     }
@@ -55,40 +55,42 @@ export async function generateTableDesign(prompt: string, chatHistory: Array<{ro
     // 解析API密钥并生成JWT token
     const { id: apiKey, secret } = parseApiKey(API_KEY);
     const token = generateToken(apiKey, secret);
-    
+
     // 构建消息历史，将最近的消息添加到上下文中
     const historyMessages = chatHistory.slice(-6).map(msg => ({
       role: msg.role,
       content: msg.content
     }));
-    
-    const systemPrompt = `您是一位专业的桌子设计顾问，擅长根据用户需求提供桌子的设计建议。
+
+    const systemPrompt = `您是一位专业的桌子设计顾问，擅长根据用户的自然语言需求（例如："加长"、"变蓝"、"想要更高的桌腿"）推导出合适的配置参数并提供设计建议。
 
 核心要求：
-1. 回复必须简洁自然，像真人设计师一样对话，总共不超过10句话
-2. 避免罗列参数，而是用流畅的语言描述设计特点
-3. 只提及最关键的参数，融入自然语言中
-4. 重要：不要给出重复的描述
+1. 回复必须简洁自然，像真人设计师一样与用户交流。
+2. 用1-2句话流畅表达设计如何改变并介绍设计特点，切忌直接罗列参数值。
+3. 在描述后，结尾处必须加上对应的参数更新标签，标签内只需包含需要更新的参数。
 
-参数范围（仅作参考，不要在回复中直接列出）：
+可更改的参数及范围（仅供推理，请勿在回复中重复罗列）：
 - 材料：titanium(钛金属)、bronze(青铜)、plastic(塑料)、stainless_steel(不锈钢)
-- 桌子尺寸：宽40-120cm，长80-200cm
-- 桌腿：高度60-90cm，宽度2-10cm，底部宽度1-8cm，倾斜角度0-30°
-- 桌面：厚度2-8cm，圆角5-95%
-- 塑料颜色：仅当材料为plastic时使用，如#FF5733
+- 桌子宽度：40-120 (cm)
+- 桌子长度：80-200 (cm)
+- 桌腿高度：60-90 (cm)
+- 桌腿宽度：2-10 (cm)
+- 桌腿底部宽度：1-8 (cm)
+- 桌腿倾斜角度：0-30 (°)
+- 桌面厚度：2-8 (cm)
+- 桌面圆角：5-95 (%)
+- 塑料颜色：仅在材料为plastic时适用，需采用十六进制颜色码（如#FF5733）
 
 重要规则：
-- 当用户提到任何颜色（如蓝色、红色等）时，自动将材料设为plastic，并设置相应的塑料颜色值
-- 常见颜色对应的十六进制值：蓝色#0055FF，红色#FF0000，绿色#00FF00，黄色#FFFF00，黑色#000000，白色#FFFFFF
-- 你的回复应该非常简短，直接，没有多余内容
+- **材质判定**：当用户提到颜色（如蓝色、红色等）且未指定其他材质时，自动将材料设为plastic，并设定相应颜色的十六进制码（如蓝色对应#0055FF, 红色对应#FF0000）。
+- **参数键名必须准确**：标签内支持更新的键名只能是："材料"、"桌子宽度"、"桌子长度"、"桌腿高度"、"桌腿宽度"、"桌腿底部宽度"、"桌腿倾斜角度"、"桌面厚度"、"桌面圆角"、"塑料颜色"。
+- **去除单位**：在参数更新标签中，参数值不要带任何单位（cm/°/%），只能是纯数值或英文/十六进制字符串。
 
-回复格式（必须严格遵守）：
-只需提供一段简短描述，末尾附上参数更新标记。不要重复描述，不要分段。
-例如：
-"为您推荐一款轻巧现代的工作桌，采用鲜亮的红橙色塑料材质，简约的长方形设计配合适中的圆角处理，锥形桌腿略微内倾提供稳定支撑。[参数更新: 材料: plastic, 桌子宽度: 80, 桌子长度: 160, 桌腿高度: 75, 桌腿宽度: 4, 桌腿底部宽度: 2, 桌腿倾斜角度: 5, 桌面厚度: 3, 桌面圆角: 15, 塑料颜色: #FF5733]"`;
-    
+回复格式（必须严格遵守格式，结尾保留方括号包裹的标签）：
+这段描述向用户介绍调整后的设计感受及特点。不要分段，直接在结尾包含更新标记。例如：为您推荐一款轻巧现代的工作桌，改为鲜亮的颜色，桌腿略微内倾，提供稳定支撑且外观时尚。[参数更新: 材料: plastic, 塑料颜色: #FF5733, 桌腿倾斜角度: 5]`;
+
     const requestBody = {
-      model: "glm-4",
+      model: "glm-4.7-flash",
       messages: [
         {
           role: 'system',
@@ -138,12 +140,12 @@ export async function generateTableDesign(prompt: string, chatHistory: Array<{ro
     return choice.message.content;
   } catch (error) {
     console.error('Detailed error in generateTableDesign:', error);
-    
+
     if (axios.isAxiosError(error)) {
       const responseData = error.response?.data;
       const statusCode = error.response?.status;
       const statusText = error.response?.statusText;
-      
+
       console.error('API Error details:', {
         status: statusCode,
         statusText: statusText,

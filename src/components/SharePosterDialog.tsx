@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import { X, Download } from 'lucide-react';
+import { useRef, useEffect, useState } from 'react';
+import { Download } from 'lucide-react';
 import { useTableStore } from '../store/tableStore';
 import html2canvas from 'html2canvas';
 
@@ -14,7 +14,26 @@ export function SharePosterDialog({ isOpen, onClose, latestDescription, lastUser
   const posterRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const parameters = useTableStore(state => state.parameters);
+  const [modelSnapshot, setModelSnapshot] = useState<string | null>(null);
   
+  // 获取 3D 画布快照
+  useEffect(() => {
+    if (isOpen) {
+      // 短暂延迟以确保最后的一帧绘制完成
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('capture-perfect-snapshot', {
+          detail: {
+            callback: (dataUrl: string) => {
+              setModelSnapshot(dataUrl);
+            }
+          }
+        }));
+      }, 50);
+    } else {
+      setModelSnapshot(null); // 关闭时清空
+    }
+  }, [isOpen]);
+
   // 点击弹窗外部关闭
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -101,56 +120,20 @@ export function SharePosterDialog({ isOpen, onClose, latestDescription, lastUser
           {/* 标题 */}
           <h2 className="text-2xl font-bold mb-4 text-center">{getPosterTitle()}</h2>
           
-          {/* 展示区域（模拟3D视图） */}
-          <div className="w-full h-64 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center mb-6">
-            <div 
-              className="relative" 
-              style={{ 
-                perspective: '800px',
-                transformStyle: 'preserve-3d'
-              }}
-            >
-              {/* 桌面 */}
-              <div 
-                className="w-56 h-28 absolute"
-                style={{
-                  backgroundColor: parameters.material === 'plastic' ? parameters.plasticColor : 
-                    parameters.material === 'titanium' ? '#A5A9B4' :
-                    parameters.material === 'bronze' ? '#CD7F32' : '#D1D1D1',
-                  borderRadius: `${parameters.roundedCorners / 2}px`,
-                  transform: 'rotateX(60deg) rotateZ(0deg)',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                }}
-              ></div>
-              
-              {/* 桌腿（简化表示） */}
-              <div className="w-56 h-28 relative">
-                <div 
-                  className="absolute bottom-0 left-8"
-                  style={{
-                    width: `${parameters.legWidth}px`,
-                    height: `${parameters.legHeight}px`,
-                    background: parameters.material === 'plastic' ? parameters.plasticColor : 
-                      parameters.material === 'titanium' ? '#A5A9B4' :
-                      parameters.material === 'bronze' ? '#CD7F32' : '#D1D1D1',
-                    transform: `rotate(${parameters.legTiltAngle}deg)`,
-                    transformOrigin: 'bottom center'
-                  }}
-                ></div>
-                <div 
-                  className="absolute bottom-0 right-8"
-                  style={{
-                    width: `${parameters.legWidth}px`,
-                    height: `${parameters.legHeight}px`,
-                    background: parameters.material === 'plastic' ? parameters.plasticColor : 
-                      parameters.material === 'titanium' ? '#A5A9B4' :
-                      parameters.material === 'bronze' ? '#CD7F32' : '#D1D1D1',
-                    transform: `rotate(${-parameters.legTiltAngle}deg)`,
-                    transformOrigin: 'bottom center'
-                  }}
-                ></div>
+          {/* 展示区域（真实3D模型截图） */}
+          <div className="w-full h-64 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center mb-6 overflow-hidden">
+            {modelSnapshot ? (
+              <img 
+                src={modelSnapshot} 
+                alt="3D模型设计" 
+                className="w-full h-full object-cover mix-blend-multiply" 
+              />
+            ) : (
+              <div className="animate-pulse flex flex-col items-center justify-center text-gray-400">
+                <div className="w-8 h-8 md:w-12 md:h-12 border-4 border-gray-200 border-t-gray-400 rounded-full animate-spin mb-3"></div>
+                <span className="text-sm">正在生成渲染图...</span>
               </div>
-            </div>
+            )}
           </div>
           
           {/* 描述 */}

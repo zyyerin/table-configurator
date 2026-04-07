@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowRight, Sparkles, ChevronDown, ChevronRight, User, Bot, Settings, X, Save, FolderOpen, Share2 } from 'lucide-react';
+import { ArrowRight, Sparkles, Bot, Settings, X, Save, FolderOpen, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTableStore } from '../store/tableStore';
 import { generateTableDesign } from '../services/zhipuApi';
 import { mockGenerateTableDesign } from '../services/mockApi';
@@ -14,50 +14,93 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+function ChatMessageBubble({ message, timestamp }: { message: ChatMessage; timestamp: string }) {
+  const [showParams, setShowParams] = useState(false);
+  
+  const paramRegex = /\[\s*参数更新\s*:[\s\S]*?\]/g;
+  const paramMatches = message.content.match(paramRegex);
+  const mainText = message.content.replace(paramRegex, '').trim();
+
+  return (
+    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      {message.role === 'assistant' && (
+        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
+          <Bot size={16} className="text-[color:var(--primary-color)]" />
+        </div>
+      )}
+
+      <div className={`relative max-w-[85%] group`}>
+        <div
+          className={`p-3.5 rounded-2xl ${message.role === 'user'
+              ? 'bg-[color:var(--primary-color)] text-white rounded-tr-sm shadow-sm'
+              : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+            }`}
+        >
+          {mainText && <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{mainText}</div>}
+          
+          {paramMatches && paramMatches.length > 0 && (
+            <div className={`mt-2 ${mainText && message.role === 'assistant' ? 'border-t border-gray-200 pt-2' : ''} ${mainText && message.role === 'user' ? 'border-t border-white/20 pt-2' : ''}`}>
+               <button 
+                 onClick={() => setShowParams(!showParams)}
+                 className={`flex items-center gap-1 text-xs font-medium transition-colors ${message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-[color:var(--primary-color)] hover:opacity-80'}`}
+               >
+                 <Settings size={14} />
+                 <span>系统参数更新</span>
+                 {showParams ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+               </button>
+               {showParams && (
+                 <div className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap break-all ${message.role === 'user' ? 'bg-black/10' : 'bg-white/60'}`}>
+                   {paramMatches.join('\\n')}
+                 </div>
+               )}
+            </div>
+          )}
+        </div>
+        <div
+          className={`text-xs text-gray-400 mt-1 opacity-100 transition-opacity ${message.role === 'user' ? 'text-right mr-1' : 'ml-1'
+            }`}
+        >
+          {timestamp}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ConfigPanel() {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useMockApi, setUseMockApi] = useState(false); // 控制是否使用模拟API
   const { parameters, updateParameter, calculatePrice } = useTableStore();
-  
+
   // 聊天历史记录
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   // 控制参数面板展开/折叠 - 默认折叠
   const [isParametersPanelOpen, setIsParametersPanelOpen] = useState(false);
-  // 控制尺寸面板展开/折叠
-  const [isDimensionsPanelOpen, setIsDimensionsPanelOpen] = useState(true);
-  // 控制材料面板展开/折叠
-  const [isMaterialsPanelOpen, setIsMaterialsPanelOpen] = useState(true);
-  
+  // 控制活动的参数 Tab
+  const [activeTab, setActiveTab] = useState<'dimensions' | 'materials'>('dimensions');
+
   // 获取灵感相关状态
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
   const [usedPrompts, setUsedPrompts] = useState<Set<string>>(new Set());
-  
+
   // 保存设计相关状态
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isDesignsDrawerOpen, setIsDesignsDrawerOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
-  
+
   // 分享弹窗状态
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  
+
   // 聊天历史区域引用，用于自动滚动
   const chatHistoryRef = useRef<HTMLDivElement>(null);
-  
-  // 引用滑块对应的 div 元素
-  const tableWidthTrackRef = useRef<HTMLDivElement>(null);
-  const tableLengthTrackRef = useRef<HTMLDivElement>(null);
-  const legHeightTrackRef = useRef<HTMLDivElement>(null);
-  const legWidthTrackRef = useRef<HTMLDivElement>(null);
-  const legMinWidthTrackRef = useRef<HTMLDivElement>(null);
-  const legTiltAngleTrackRef = useRef<HTMLDivElement>(null);
-  const tableThicknessTrackRef = useRef<HTMLDivElement>(null);
-  const roundedCornersTrackRef = useRef<HTMLDivElement>(null);
+
+
 
   // 从store中获取圆角参数值
   const roundedCorners = useTableStore(state => state.parameters.roundedCorners);
-  
+
   // 单独更新圆角参数的函数
   const updateRoundedCorners = (value: number) => {
     updateParameter('roundedCorners', value);
@@ -68,11 +111,11 @@ export function ConfigPanel() {
     try {
       // 单参数更新标记匹配 [参数更新: 参数名: 值]
       const singleParamRegex = /\[\s*参数更新\s*:\s*([^:]+)\s*:\s*([^\]\s,]+)\s*\]/g;
-      
+
       // 多参数更新标记匹配 [参数更新: 参数1: 值1, 参数2: 值2, ...]
       const multiParamRegex = /\[\s*参数更新\s*:(.*?)\]/;
       let paramFound = false;
-      
+
       // 先尝试匹配单参数更新格式
       let match;
       while ((match = singleParamRegex.exec(suggestion)) !== null) {
@@ -81,13 +124,13 @@ export function ConfigPanel() {
         const paramValue = match[2].trim();
         updateParamByName(paramName, paramValue);
       }
-      
+
       // 如果没找到单参数更新，尝试匹配多参数更新格式
       if (!paramFound) {
         const multiMatch = suggestion.match(multiParamRegex);
         if (multiMatch && multiMatch[1]) {
           paramFound = true;
-          
+
           // 切分参数对
           const paramPairs = multiMatch[1].split(',');
           for (const pair of paramPairs) {
@@ -103,12 +146,12 @@ export function ConfigPanel() {
           }
         }
       }
-      
+
       // 检查是否已找到参数更新标记，如果找到则不需要继续解析
       if (paramFound) {
         return;
       }
-      
+
       // 提取材料信息
       const materialMatch = suggestion.match(/材料：\s*(titanium|bronze|plastic|stainless_steel)/);
       if (materialMatch) {
@@ -242,18 +285,18 @@ export function ConfigPanel() {
     if (!prompt.trim()) return;
 
     setError(null);
-    
+
     // 添加用户消息到聊天历史
     const userMessage = { role: 'user' as const, content: prompt, timestamp: new Date() };
     setChatHistory(prev => [...prev, userMessage]);
-    
+
     try {
       setIsLoading(true);
-      
+
       // 准备发送给API的聊天历史
       const messageHistory = chatHistory.map(({ role, content }) => ({ role, content }));
       messageHistory.push({ role: 'user', content: prompt });
-      
+
       let suggestion: string;
       if (useMockApi) {
         suggestion = await mockGenerateTableDesign(prompt, messageHistory);
@@ -261,14 +304,17 @@ export function ConfigPanel() {
         try {
           suggestion = await generateTableDesign(prompt, messageHistory);
         } catch (apiError) {
+          // 真实 API 失败，降级到 mock 并提示用户
+          const errMsg = apiError instanceof Error ? apiError.message : '未知错误';
+          setError(`⚠️ 真实 API 不可用（${errMsg}），已切换为演示模式`);
           suggestion = await mockGenerateTableDesign(prompt, messageHistory);
           setUseMockApi(true); // 后续请求直接使用模拟API
         }
       }
-      
+
       // 添加AI响应到聊天历史
       setChatHistory(prev => [...prev, { role: 'assistant', content: suggestion, timestamp: new Date() }]);
-      
+
       parseAndUpdateParameters(suggestion);
     } catch (error) {
       setError('生成设计建议时出错: ' + (error instanceof Error ? error.message : '请重试'));
@@ -280,7 +326,7 @@ export function ConfigPanel() {
 
   const handleSurpriseMe = async () => {
     setIsGeneratingIdea(true);
-    
+
     // 扩展的提示库，按类别分组
     const surprisePrompts = {
       创意风格: [
@@ -314,7 +360,7 @@ export function ConfigPanel() {
         "设计一张美式复古工业风格的餐桌"
       ]
     };
-    
+
     // 与当前设计参数联动的提示
     const materialSuggestions = {
       'titanium': [
@@ -338,7 +384,7 @@ export function ConfigPanel() {
         "给不锈钢桌面增加一些温暖感"
       ]
     };
-    
+
     // 尺寸相关建议
     const sizeSuggestions = [];
     if (parameters.tableWidth < 70) {
@@ -346,19 +392,19 @@ export function ConfigPanel() {
     } else if (parameters.tableWidth > 100) {
       sizeSuggestions.push("这张桌子能否设计得窄一些？");
     }
-    
+
     if (parameters.legHeight < 70) {
       sizeSuggestions.push("我想要一张更高的桌子");
     } else if (parameters.legHeight > 80) {
       sizeSuggestions.push("这张桌子能否矮一些？");
     }
-    
+
     if (parameters.roundedCorners < 30) {
       sizeSuggestions.push("我希望桌子的圆角更大一些");
     } else if (parameters.roundedCorners > 70) {
       sizeSuggestions.push("我想要桌子的圆角小一些");
     }
-    
+
     // 情感元素/场景描述
     const emotions = [
       "我刚搬了新家，想要一张能让人眼前一亮的",
@@ -366,16 +412,16 @@ export function ConfigPanel() {
       "我是一名设计师，希望有一张能展示我个性的",
       "我的空间有限但追求品质，想要一张"
     ];
-    
+
     // 决定提示类型的策略
     let finalPrompt = "";
     const promptStrategy = Math.random();
-    
+
     // 30%概率使用与当前材质相关的提示
     if (promptStrategy < 0.3 && materialSuggestions[parameters.material]) {
       const materialPrompts = materialSuggestions[parameters.material];
       finalPrompt = materialPrompts[Math.floor(Math.random() * materialPrompts.length)];
-    } 
+    }
     // 20%概率使用与当前尺寸相关的提示
     else if (promptStrategy < 0.5 && sizeSuggestions.length > 0) {
       finalPrompt = sizeSuggestions[Math.floor(Math.random() * sizeSuggestions.length)];
@@ -385,11 +431,11 @@ export function ConfigPanel() {
       // 随机选择一个类别
       const categories = Object.keys(surprisePrompts);
       const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-      
+
       // 从选中类别中随机选择一个提示
       const promptsInCategory = surprisePrompts[randomCategory as keyof typeof surprisePrompts];
       const randomPrompt = promptsInCategory[Math.floor(Math.random() * promptsInCategory.length)];
-      
+
       // 50%概率添加情感元素
       if (Math.random() > 0.5) {
         const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
@@ -398,7 +444,7 @@ export function ConfigPanel() {
         finalPrompt = randomPrompt;
       }
     }
-    
+
     // 避免重复的提示
     let attempts = 0;
     while (usedPrompts.has(finalPrompt) && attempts < 10) {
@@ -409,10 +455,10 @@ export function ConfigPanel() {
       finalPrompt = promptsInCategory[Math.floor(Math.random() * promptsInCategory.length)];
       attempts++;
     }
-    
+
     // 记录已使用的提示
     setUsedPrompts(prev => new Set([...prev, finalPrompt]));
-    
+
     // 模拟思考过程
     setTimeout(() => {
       setPrompt(finalPrompt);
@@ -425,53 +471,8 @@ export function ConfigPanel() {
     setUseMockApi(!useMockApi);
   };
 
-  // 更新滑块轨道宽度的函数
-  const updateTrackWidth = (
-    ref: React.RefObject<HTMLDivElement>,
-    value: number,
-    min: number,
-    max: number
-  ) => {
-    if (ref.current) {
-      // 查找内部的蓝色进度条div并修改其宽度
-      const progressBar = ref.current.querySelector('div');
-      if (progressBar) {
-        const percent = ((value - min) / (max - min)) * 100;
-        progressBar.style.width = `${percent}%`;
-      }
-    }
-  };
 
-  // 在每次参数面板打开时，以及参数变化时重新计算滑块宽度
-  useEffect(() => {
-    if (isParametersPanelOpen) {
-      // 使用requestAnimationFrame确保DOM已更新
-      requestAnimationFrame(() => {
-        // 初始化所有滑块的宽度
-        updateTrackWidth(tableWidthTrackRef, parameters.tableWidth, 40, 120);
-        updateTrackWidth(tableLengthTrackRef, parameters.tableLength, 80, 200);
-        updateTrackWidth(legHeightTrackRef, parameters.legHeight, 60, 90);
-        updateTrackWidth(legWidthTrackRef, parameters.legWidth, 2, 10);
-        updateTrackWidth(legMinWidthTrackRef, parameters.legMinWidth, 1, 8);
-        updateTrackWidth(legTiltAngleTrackRef, parameters.legTiltAngle, 0, 30);
-        updateTrackWidth(tableThicknessTrackRef, parameters.tableThickness, 2, 8);
-        updateTrackWidth(roundedCornersTrackRef, parameters.roundedCorners, 5, 95);
-        
-        console.log('滑块宽度已重新计算');
-      });
-    }
-  }, [
-    isParametersPanelOpen,
-    parameters.tableWidth, 
-    parameters.tableLength, 
-    parameters.legHeight, 
-    parameters.legWidth,
-    parameters.legMinWidth,
-    parameters.legTiltAngle,
-    parameters.tableThickness, 
-    parameters.roundedCorners
-  ]);
-  
+
   // 保存成功提示自动消失
   useEffect(() => {
     if (saveSuccess) {
@@ -481,7 +482,7 @@ export function ConfigPanel() {
       return () => clearTimeout(timer);
     }
   }, [saveSuccess]);
-  
+
   // 当聊天历史更新时，滚动到底部
   useEffect(() => {
     if (chatHistoryRef.current) {
@@ -520,16 +521,16 @@ export function ConfigPanel() {
   const handleOpenSaveDialog = () => {
     setIsSaveDialogOpen(true);
   };
-  
+
   // 处理打开设计
   const handleOpenDesignsDrawer = () => {
     setIsDesignsDrawerOpen(true);
   };
-  
+
   // 处理保存成功
   const handleDesignSaved = (designId: string) => {
     setSaveSuccess('设计已成功保存！');
-    
+
     // 3秒后清除成功提示
     setTimeout(() => {
       setSaveSuccess(null);
@@ -542,603 +543,381 @@ export function ConfigPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden relative">
+    <div className="relative flex h-full flex-col p-6 overflow-hidden bg-white">
       {/* 头部 */}
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">AI Table Designer</h2>
+      <div className="flex justify-between items-center mb-4 flex-shrink-0">
+        <h2 className="text-xl font-bold text-gray-800">
+          {isParametersPanelOpen ? '参数设置' : 'AI Table Designer'}
+        </h2>
         <div className="flex items-center gap-2">
-          {chatHistory.length > 0 && (
+          {isParametersPanelOpen ? (
             <button
-              onClick={clearChatHistory}
-              className="text-xs underline text-gray-500"
+              onClick={() => setIsParametersPanelOpen(false)}
+              className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
             >
-              清空对话
+              <X size={20} className="text-gray-600" />
             </button>
+          ) : (
+            chatHistory.length > 0 && (
+              <button
+                onClick={clearChatHistory}
+                className="text-xs text-gray-500 hover:text-red-500 transition-colors"
+              >
+                清空对话
+              </button>
+            )
           )}
-          {/* <button
-            onClick={handleOpenSaveDialog}
-            className="flex items-center px-3 py-1.5 btn-primary"
-            title="保存当前设计"
-          >
-            <Save size={16} className="mr-1.5" />
-            保存
-          </button>
-          
-          <button
-            onClick={handleOpenDesignsDrawer}
-            className="flex items-center px-3 py-1.5 btn-secondary"
-            title="查看已保存的设计"
-          >
-            <FolderOpen size={16} className="mr-1.5" />
-            我的设计
-          </button> */}
         </div>
       </div>
 
       {/* 成功提示 */}
       {saveSuccess && (
-        <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 mb-4 rounded">
+        <div className="bg-green-50 border-l-4 border-green-500 text-green-700 p-3 mb-4 rounded shadow-sm text-sm">
           {saveSuccess}
         </div>
       )}
 
-      {/* 聊天历史区域 - 固定高度 */}
-      <div 
-        ref={chatHistoryRef}
-        className="h-[480px] overflow-y-auto mb-4 border rounded bg-gray-50 shadow-sm flex flex-col"
-      >
-        <div className="flex-1 p-4">
-          {chatHistory.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center text-gray-500 px-6 py-10 bg-white card max-w-xs mx-auto">
-                <Bot size={24} className="mx-auto mb-2 text-[color:var(--primary-color)]" />
-                <p className="text-sm">与AI助手开始对话，获取桌子设计建议</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {chatHistory.map((message, index) => (
-                <div 
-                  key={index} 
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {message.role === 'assistant' && (
-                    <div className="avatar avatar-assistant">
-                      <Bot size={16} className="text-[color:var(--primary-color)]" />
-                    </div>
-                  )}
-                  
-                  <div className={`relative max-w-[80%] group`}>
-                    <div 
-                      className={`p-3 rounded chat-message ${
-                        message.role === 'user' 
-                          ? 'chat-message-user bg-[color:var(--primary-color)] text-white' 
-                          : 'chat-message-assistant bg-white border'
-                      }`}
-                    >
-                      <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-                    </div>
-                    <div 
-                      className={`text-xs text-gray-500 mt-1 opacity-70 ${
-                        message.role === 'user' ? 'text-right mr-2' : 'ml-2'
-                      }`}
-                    >
-                      {formatTime(message.timestamp)}
-                    </div>
-                  </div>
-                  
-                  {message.role === 'user' && (
-                    <div className="avatar avatar-user">
-                      <User size={16} className="text-white" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 快速提示按钮 - 移到聊天历史和输入框之间的位置 */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        <button
-          type="button"
-          className="px-3 py-1 bg-white border rounded-full text-sm flex items-center gap-1 hover:bg-gray-50 disabled:opacity-50 shadow-sm transition-all"
-          onClick={handleSurpriseMe}
-          disabled={isLoading || isGeneratingIdea}
-        >
-          <Sparkles size={14} className={`text-[color:var(--primary-color)] ${isGeneratingIdea ? 'animate-spin' : ''}`} />
-          {isGeneratingIdea ? '思考中...' : '获取灵感'}
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("我需要一张圆角更大的桌子")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          圆角 +
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("调整桌面圆角，我希望设为50%")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          圆角设为50%
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("我想要锥形桌腿，顶部粗底部细")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          锥形桌腿
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("使桌腿变细一些，约3cm宽")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          细桌腿
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("换成蓝色塑料桌子")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          蓝色塑料
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("调整桌子材料，我想换成钛金属")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          钛金属
-        </button>
-        <button 
-          onClick={() => handleQuickPrompt("适合几人使用？")}
-          className="text-xs px-2 py-1 border rounded-full bg-gray-50 hover:bg-gray-100"
-        >
-          使用人数？
-        </button>
-      </div>
-
-      {/* 聊天输入区域 */}
-      <div className="mb-4">
-        <form onSubmit={handlePromptSubmit} className="relative">
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="描述您想要的桌子设计..."
-            className="w-full h-24 p-3 input-field resize-none shadow-sm transition-all"
-            disabled={isLoading}
-          />
-          {error && (
-            <div className="mt-2 text-red-500 text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="absolute bottom-3 right-3 p-2 bg-[color:var(--primary-color)] text-white rounded hover:bg-[color:var(--primary-hover)] disabled:opacity-50 shadow-md transition-all"
-            disabled={isLoading || !prompt.trim()}
-          >
-            <ArrowRight size={18} className={isLoading ? 'animate-spin' : ''} />
-          </button>
-        </form>
-      </div>
-
-      {/* 价格显示 - 替代之前的测试按钮 */}
-      <div className="mb-4">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-600 font-medium">当前价格</span>
-          <span className="text-2xl font-bold">{formatPrice(calculatePrice())}</span>
-        </div>
-      </div>
-
-      {/* 操作按钮 */}
-      <div className="grid grid-cols-2 gap-4 mt-auto mb-1">
-        <button 
-          className="w-full p-3 btn-secondary shadow-sm flex items-center justify-center"
-          onClick={() => setIsParametersPanelOpen(true)}
-        >
-          <Settings size={16} className="mr-1.5" />
-          参数设置
-        </button>
-        <button 
-          className="w-full p-3 bg-black text-white rounded hover:bg-gray-900 transition-all shadow-sm flex items-center justify-center"
-          onClick={handleOpenShareDialog}
-        >
-          <Share2 size={16} className="mr-1.5" />
-          分享
-        </button>
-      </div>
-
-      {/* 调整组件间距 */}
-      <div className="mt-2 mb-4"></div>
-      
-      {/* 参数面板弹出抽屉 */}
-      {isParametersPanelOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-25 flex justify-end">
-          <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-xl p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">参数设置</h2>
-              <button 
-                onClick={() => setIsParametersPanelOpen(false)}
-                className="p-1 rounded hover:bg-gray-100"
+      {/* Scrollable Main Area */}
+      <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin hide-scrollbar relative">
+        {isParametersPanelOpen ? (
+          /* ================================
+                   PARAMETERS PANEL
+             ================================ */
+          <div className="flex flex-col h-full animate-fade-in pb-4">
+            {/* Tabs Header */}
+            <div className="flex p-1 bg-gray-100/80 rounded-lg mb-4 flex-shrink-0">
+              <button
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'dimensions'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                  }`}
+                onClick={() => setActiveTab('dimensions')}
               >
-                <X size={20} />
+                尺寸
+              </button>
+              <button
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'materials'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                  }`}
+                onClick={() => setActiveTab('materials')}
+              >
+                材料
               </button>
             </div>
-            
-            {/* 尺寸设置面板 */}
-            <div className="mb-4">
-              <div 
-                className="flex justify-between items-center p-2 bg-gray-100 rounded cursor-pointer"
-                onClick={() => setIsDimensionsPanelOpen(!isDimensionsPanelOpen)}
-              >
-                <h3 className="font-medium">尺寸设置</h3>
-                {isDimensionsPanelOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+
+            {/* Tab Content */}
+            {activeTab === 'dimensions' && (
+              <div className="space-y-5 animate-fade-in pr-2">
+                {/* 桌子宽度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌子宽度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.tableWidth} cm</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={40} max={120} step={1}
+                    value={parameters.tableWidth}
+                    onChange={(e) => updateParameter('tableWidth', Number(e.target.value))}
+                  />
+                </div>
+
+                {/* 桌子长度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌子长度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.tableLength} cm</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={80} max={200} step={1}
+                    value={parameters.tableLength}
+                    onChange={(e) => updateParameter('tableLength', Number(e.target.value))}
+                  />
+                </div>
+
+                {/* 桌腿高度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌腿高度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.legHeight} cm</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={60} max={90} step={1}
+                    value={parameters.legHeight}
+                    onChange={(e) => updateParameter('legHeight', Number(e.target.value))}
+                  />
+                </div>
+
+                {/* 桌腿宽度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌腿宽度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.legWidth} cm</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={2} max={10} step={1}
+                    value={parameters.legWidth}
+                    onChange={(e) => updateParameter('legWidth', Number(e.target.value))}
+                  />
+                </div>
+
+                {/* 桌腿底部宽度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌腿底部宽度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.legMinWidth} cm</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={1} max={8} step={0.5}
+                    value={parameters.legMinWidth}
+                    onChange={(e) => updateParameter('legMinWidth', Number(e.target.value))}
+                  />
+                </div>
+
+                {/* 桌腿倾斜角度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌腿倾斜角度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.legTiltAngle}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={0} max={30} step={1}
+                    value={parameters.legTiltAngle}
+                    onChange={(e) => updateParameter('legTiltAngle', Number(e.target.value))}
+                  />
+                </div>
+
+                {/* 桌面厚度 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌面厚度</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.tableThickness} cm</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={2} max={8} step={0.1}
+                    value={parameters.tableThickness}
+                    onChange={(e) => updateParameter('tableThickness', Math.round(Number(e.target.value) * 10) / 10)}
+                  />
+                </div>
+
+                {/* 桌面圆角 */}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-600">桌面圆角</label>
+                    <span className="text-sm font-bold text-[color:var(--primary-color)]">{parameters.roundedCorners}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    className="param-slider"
+                    min={5} max={95} step={1}
+                    value={parameters.roundedCorners}
+                    onChange={(e) => updateRoundedCorners(Number(e.target.value))}
+                  />
+                </div>
               </div>
-              
-              {isDimensionsPanelOpen && (
-                <div className="p-2 space-y-4 mt-2 border rounded">
-                  {/* 桌子宽度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌子宽度</label>
-                      <span className="text-sm font-medium">{parameters.tableWidth} cm</span>
+            )}
+
+            {activeTab === 'materials' && (
+              <div className="space-y-3 animate-fade-in pr-2">
+                {[
+                  { id: 'titanium', name: '钛金属 (Titanium)', desc: '轻量、高强度、现代感' },
+                  { id: 'bronze', name: '青铜 (Bronze)', desc: '古典、高档、温暖' },
+                  { id: 'plastic', name: '塑料 (Plastic)', desc: '轻便、实惠、多色选择' },
+                  { id: 'stainless_steel', name: '不锈钢 (Stainless Steel)', desc: '耐用、现代、易清洁' }
+                ].map((mat) => (
+                  <div
+                    key={mat.id}
+                    className={`p-3 rounded-xl cursor-pointer transition-all ${parameters.material === mat.id
+                        ? 'bg-blue-50/50 border-2 border-[color:var(--primary-color)] shadow-sm'
+                        : 'border border-gray-200 hover:border-[color:var(--primary-color)] hover:bg-gray-50'
+                      }`}
+                    onClick={() => updateParameter('material', mat.id as any)}
+                  >
+                    <div className="font-semibold text-gray-800">{mat.name}</div>
+                    <div className="text-xs text-gray-500 mt-1">{mat.desc}</div>
+                  </div>
+                ))}
+
+                {/* 塑料颜色选择器，仅在选择塑料材质时显示 */}
+                {parameters.material === 'plastic' && (
+                  <div className="p-4 border border-gray-100 bg-gray-50/50 rounded-xl mt-4 animate-fade-in text-sm">
+                    <div className="font-medium text-gray-700 mb-3">选择塑料颜色</div>
+                    <div className="flex flex-wrap gap-2">
+                      {['#C97B84', '#C06C48', '#D4B896', '#F0EDE8', '#7DAA92', '#5B9EA6', '#5B7FA6', '#2C2C2C'].map((color) => (
+                        <div
+                          key={color}
+                          className={`w-8 h-8 rounded-full cursor-pointer transition-transform hover:scale-110 shadow-sm ${parameters.plasticColor === color ? 'ring-2 ring-offset-2 ring-[color:var(--primary-color)]' : ''}`}
+                          style={{ backgroundColor: color }}
+                          onClick={() => updateParameter('plasticColor', color)}
+                          title={color}
+                        />
+                      ))}
                     </div>
-                    <div 
-                      ref={tableWidthTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (tableWidthTrackRef.current) {
-                          const rect = tableWidthTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(40 + percentage * (120 - 40));
-                          updateParameter('tableWidth', newValue);
-                          updateTrackWidth(tableWidthTrackRef, newValue, 40, 120);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.tableWidth - 40) / (120 - 40)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>40 cm</span>
-                      <span>120 cm</span>
+                    <div className="mt-4 pt-3 border-t border-gray-200">
+                      <label className="text-sm text-gray-600 block mb-2">自定义颜色</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={parameters.plasticColor}
+                          onChange={(e) => updateParameter('plasticColor', e.target.value)}
+                          className="h-10 w-16 p-1 bg-white border border-gray-200 cursor-pointer rounded"
+                        />
+                        <span className="font-mono text-gray-600 uppercase bg-white border border-gray-200 px-3 py-1.5 rounded shadow-sm">{parameters.plasticColor}</span>
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* 桌子长度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌子长度</label>
-                      <span className="text-sm font-medium">{parameters.tableLength} cm</span>
-                    </div>
-                    <div 
-                      ref={tableLengthTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (tableLengthTrackRef.current) {
-                          const rect = tableLengthTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(80 + percentage * (200 - 80));
-                          updateParameter('tableLength', newValue);
-                          updateTrackWidth(tableLengthTrackRef, newValue, 80, 200);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.tableLength - 80) / (200 - 80)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>80 cm</span>
-                      <span>200 cm</span>
-                    </div>
-                  </div>
-                  
-                  {/* 桌腿高度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌腿高度</label>
-                      <span className="text-sm font-medium">{parameters.legHeight} cm</span>
-                    </div>
-                    <div 
-                      ref={legHeightTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (legHeightTrackRef.current) {
-                          const rect = legHeightTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(60 + percentage * (90 - 60));
-                          updateParameter('legHeight', newValue);
-                          updateTrackWidth(legHeightTrackRef, newValue, 60, 90);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.legHeight - 60) / (90 - 60)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>60 cm</span>
-                      <span>90 cm</span>
-                    </div>
-                  </div>
-                  
-                  {/* 桌腿宽度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌腿宽度</label>
-                      <span className="text-sm font-medium">{parameters.legWidth} cm</span>
-                    </div>
-                    <div 
-                      ref={legWidthTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (legWidthTrackRef.current) {
-                          const rect = legWidthTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(2 + percentage * (10 - 2));
-                          updateParameter('legWidth', newValue);
-                          updateTrackWidth(legWidthTrackRef, newValue, 2, 10);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.legWidth - 2) / (10 - 2)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>2 cm</span>
-                      <span>10 cm</span>
-                    </div>
-                  </div>
-                  
-                  {/* 桌腿底部宽度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌腿底部宽度</label>
-                      <span className="text-sm font-medium">{parameters.legMinWidth} cm</span>
-                    </div>
-                    <div 
-                      ref={legMinWidthTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (legMinWidthTrackRef.current) {
-                          const rect = legMinWidthTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(1 + percentage * (8 - 1));
-                          updateParameter('legMinWidth', newValue);
-                          updateTrackWidth(legMinWidthTrackRef, newValue, 1, 8);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.legMinWidth - 1) / (8 - 1)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>1 cm</span>
-                      <span>8 cm</span>
-                    </div>
-                  </div>
-                  
-                  {/* 桌腿倾斜角度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌腿倾斜角度</label>
-                      <span className="text-sm font-medium">{parameters.legTiltAngle}°</span>
-                    </div>
-                    <div 
-                      ref={legTiltAngleTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (legTiltAngleTrackRef.current) {
-                          const rect = legTiltAngleTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(0 + percentage * (30 - 0));
-                          updateParameter('legTiltAngle', newValue);
-                          updateTrackWidth(legTiltAngleTrackRef, newValue, 0, 30);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.legTiltAngle - 0) / (30 - 0)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>0°</span>
-                      <span>30°</span>
-                    </div>
-                  </div>
-                  
-                  {/* 桌面厚度 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌面厚度</label>
-                      <span className="text-sm font-medium">{parameters.tableThickness} cm</span>
-                    </div>
-                    <div 
-                      ref={tableThicknessTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (tableThicknessTrackRef.current) {
-                          const rect = tableThicknessTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round((2 + percentage * (8 - 2)) * 10) / 10;
-                          updateParameter('tableThickness', newValue);
-                          updateTrackWidth(tableThicknessTrackRef, newValue, 2, 8);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.tableThickness - 2) / (8 - 2)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>2 cm</span>
-                      <span>8 cm</span>
-                    </div>
-                  </div>
-                  
-                  {/* 桌面圆角 */}
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-sm text-gray-600">桌面圆角</label>
-                      <span className="text-sm font-medium">{parameters.roundedCorners}%</span>
-                    </div>
-                    <div 
-                      ref={roundedCornersTrackRef}
-                      className="h-2 bg-gray-200 rounded overflow-hidden cursor-pointer"
-                      onClick={(e) => {
-                        if (roundedCornersTrackRef.current) {
-                          const rect = roundedCornersTrackRef.current.getBoundingClientRect();
-                          const trackWidth = rect.width;
-                          const clickPosition = e.clientX - rect.left;
-                          const percentage = Math.max(0, Math.min(1, clickPosition / trackWidth));
-                          const newValue = Math.round(5 + percentage * (95 - 5));
-                          
-                          // 使用专用函数更新圆角
-                          updateRoundedCorners(newValue);
-                          
-                          updateTrackWidth(roundedCornersTrackRef, newValue, 5, 95);
-                        }
-                      }}
-                    >
-                      <div 
-                        className="h-full bg-[color:var(--primary-color)]"
-                        style={{ width: `${((parameters.roundedCorners - 5) / (95 - 5)) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1 text-xs text-gray-500">
-                      <span>5%</span>
-                      <span>95%</span>
-                    </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ================================
+                   CHAT PANEL
+             ================================ */
+          <div className="flex flex-col h-full animate-fade-in">
+            <div
+              ref={chatHistoryRef}
+              className="flex-1 overflow-y-auto pr-2 pb-2 scrollbar-thin"
+            >
+              {chatHistory.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center text-gray-500 py-10 w-full">
+                    <Bot size={32} className="mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">描述您想要的桌子，AI将为您自动设计</p>
                   </div>
                 </div>
-              )}
-            </div>
-            
-            {/* 材料设置面板 */}
-            <div className="mb-4">
-              <div 
-                className="flex justify-between items-center p-2 bg-gray-100 rounded cursor-pointer"
-                onClick={() => setIsMaterialsPanelOpen(!isMaterialsPanelOpen)}
-              >
-                <h3 className="font-medium">材料设置</h3>
-                {isMaterialsPanelOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-              </div>
-              
-              {isMaterialsPanelOpen && (
-                <div className="p-2 space-y-2 mt-2 border rounded">
-                  <div 
-                    className={`p-2 rounded cursor-pointer ${parameters.material === 'titanium' ? 'bg-blue-100 border-2 border-[color:var(--primary-color)]' : 'border hover:bg-gray-50'}`}
-                    onClick={() => updateParameter('material', 'titanium')}
-                  >
-                    <div className="font-medium">钛金属 (Titanium)</div>
-                    <div className="text-sm text-gray-600">轻量、高强度、现代感</div>
-                  </div>
-                  
-                  <div 
-                    className={`p-2 rounded cursor-pointer ${parameters.material === 'bronze' ? 'bg-blue-100 border-2 border-[color:var(--primary-color)]' : 'border hover:bg-gray-50'}`}
-                    onClick={() => updateParameter('material', 'bronze')}
-                  >
-                    <div className="font-medium">青铜 (Bronze)</div>
-                    <div className="text-sm text-gray-600">古典、高档、温暖</div>
-                  </div>
-                  
-                  <div 
-                    className={`p-2 rounded cursor-pointer ${parameters.material === 'plastic' ? 'bg-blue-100 border-2 border-[color:var(--primary-color)]' : 'border hover:bg-gray-50'}`}
-                    onClick={() => updateParameter('material', 'plastic')}
-                  >
-                    <div className="font-medium">塑料 (Plastic)</div>
-                    <div className="text-sm text-gray-600">轻便、实惠、多色选择</div>
-                  </div>
-                  
-                  {/* 塑料颜色选择器，仅在选择塑料材质时显示 */}
-                  {parameters.material === 'plastic' && (
-                    <div className="p-2 border rounded mt-2">
-                      <div className="font-medium mb-2">塑料颜色</div>
-                      <div className="flex flex-wrap gap-2">
-                        {['#2C2C2C', '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', '#33FFF3', '#FFFFFF'].map((color) => (
-                          <div 
-                            key={color}
-                            className={`w-8 h-8 rounded cursor-pointer border-2 ${parameters.plasticColor === color ? 'border-[color:var(--primary-color)]' : 'border-gray-300'}`}
-                            style={{ backgroundColor: color }}
-                            onClick={() => updateParameter('plasticColor', color)}
-                            title={color}
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-3">
-                        <label className="text-sm text-gray-600 block mb-1">自定义颜色</label>
-                        <div className="flex items-center">
-                          <input 
-                            type="color" 
-                            value={parameters.plasticColor}
-                            onChange={(e) => updateParameter('plasticColor', e.target.value)}
-                            className="h-8 w-8 p-0 border-0 cursor-pointer"
-                          />
-                          <span className="ml-2 text-sm font-medium">{parameters.plasticColor}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div 
-                    className={`p-2 rounded cursor-pointer ${parameters.material === 'stainless_steel' ? 'bg-blue-100 border-2 border-[color:var(--primary-color)]' : 'border hover:bg-gray-50'}`}
-                    onClick={() => updateParameter('material', 'stainless_steel')}
-                  >
-                    <div className="font-medium">不锈钢 (Stainless Steel)</div>
-                    <div className="text-sm text-gray-600">耐用、现代、易清洁</div>
-                  </div>
+              ) : (
+                <div className="space-y-4">
+                  {chatHistory.map((message, index) => (
+                    <ChatMessageBubble key={index} message={message} timestamp={formatTime(message.timestamp)} />
+                  ))}
                 </div>
               )}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* 底部固定区域 (只有在聊天模式下才显示输入框和快捷按钮) */}
+      <div className="flex-shrink-0 pt-3 flex flex-col gap-3 mt-1 bg-white z-10 w-full relative">
+        {!isParametersPanelOpen && (
+          <>
+            {/* Quick Prompts */}
+            <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none hide-scrollbar mask-edge">
+              <button
+                type="button"
+                className="flex-shrink-0 px-3 py-1.5 bg-blue-50 text-[color:var(--primary-color)] border border-blue-100 rounded-full text-xs flex items-center gap-1.5 hover:bg-blue-100 transition-colors font-medium"
+                onClick={handleSurpriseMe}
+                disabled={isLoading || isGeneratingIdea}
+              >
+                <Sparkles size={14} className={isGeneratingIdea ? 'animate-spin' : ''} />
+                {isGeneratingIdea ? '灵感闪现...' : '获取灵感'}
+              </button>
+              <button onClick={() => handleQuickPrompt("圆角更大一些")} className="flex-shrink-0 text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap">圆角 +</button>
+              <button onClick={() => handleQuickPrompt("细桌腿")} className="flex-shrink-0 text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap">细桌腿</button>
+              <button onClick={() => handleQuickPrompt("钛金属材质")} className="flex-shrink-0 text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap">钛金属</button>
+              <button onClick={() => handleQuickPrompt("蓝色塑料")} className="flex-shrink-0 text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap">蓝色塑料</button>
+              <button onClick={() => handleQuickPrompt("适合几人使用？")} className="flex-shrink-0 text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap">使用人数</button>
+            </div>
+
+            {/* Input Form */}
+            <form onSubmit={handlePromptSubmit} className="relative">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="描述桌子设计..."
+                className="w-full h-24 p-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[color:var(--primary-color)] focus:bg-white resize-none transition-all text-[15px]"
+                disabled={isLoading}
+              />
+              {error && (
+                <div className="absolute -top-7 right-0 text-red-500 text-xs font-medium">
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                className={`absolute bottom-3 right-3 p-2 rounded-lg transition-all ${!prompt.trim() || isLoading
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-[color:var(--primary-color)] text-white shadow-sm hover:shadow-md hover:scale-105'
+                  }`}
+                disabled={isLoading || !prompt.trim()}
+              >
+                <ArrowRight size={18} className={isLoading ? 'animate-spin' : ''} />
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* 价格与操作栏 */}
+        <div className="flex items-center justify-between pt-2 mt-1">
+          {!isParametersPanelOpen ? (
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-500 font-medium">估算价格</span>
+              <span className="text-xl font-bold tracking-tight text-gray-900">{formatPrice(calculatePrice())}</span>
+            </div>
+          ) : (
+            <div className="flex-1"></div>
+          )}
+
+          <div className="flex gap-2 ml-auto w-full sm:w-auto">
+            {!isParametersPanelOpen && (
+              <button
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 font-medium transition-colors text-sm"
+                onClick={() => setIsParametersPanelOpen(true)}
+              >
+                <Settings size={16} />
+                <span>参数设置</span>
+              </button>
+            )}
+
+            <button
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white hover:bg-gray-800 shadow-sm font-medium transition-colors text-sm"
+              onClick={handleOpenShareDialog}
+            >
+              <Share2 size={16} />
+              <span>分享设计</span>
+            </button>
+          </div>
         </div>
-      )}
-      
+      </div>
+
+
       {/* 保存设计对话框 */}
-      <SaveDesignDialog 
+      <SaveDesignDialog
         isOpen={isSaveDialogOpen}
         onClose={() => setIsSaveDialogOpen(false)}
         onSaved={handleDesignSaved}
       />
-      
+
       {/* 已保存设计抽屉 */}
       <SavedDesignsDrawer
         isOpen={isDesignsDrawerOpen}
         onClose={() => setIsDesignsDrawerOpen(false)}
       />
-      
+
       {/* 分享海报弹窗 */}
       <SharePosterDialog
         isOpen={isShareDialogOpen}
         onClose={() => setIsShareDialogOpen(false)}
-        latestDescription={chatHistory.length > 0 ? 
-          chatHistory.filter(msg => msg.role === 'assistant').pop()?.content || '' : 
+        latestDescription={chatHistory.length > 0 ?
+          chatHistory.filter(msg => msg.role === 'assistant').pop()?.content || '' :
           '一张现代风格的自定义桌子'}
-        lastUserPrompt={chatHistory.length > 0 ? 
-          chatHistory.filter(msg => msg.role === 'user').pop()?.content || '' : 
+        lastUserPrompt={chatHistory.length > 0 ?
+          chatHistory.filter(msg => msg.role === 'user').pop()?.content || '' :
           ''}
       />
     </div>
